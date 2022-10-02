@@ -6,6 +6,8 @@ return: rigid transformation parameter R, t.
 import numpy as np
 import math
 import copy
+import open3d as o3d
+import matplotlib.pyplot as plt
 class Node:
     def __init__(self,value,axis,left,right,point_indices):
         self.axis = axis
@@ -48,7 +50,7 @@ class KNNResultSet:
             else:
                 break
         self.dist_index_list[i].distance = dist
-        self.dist_index_list[i].index = index
+        self.dist_index_list[i].index = int(index)
         self.worst_dist = self.dist_index_list[self.capacity-1].distance
 
 
@@ -167,33 +169,72 @@ def kd_test():
 
 def normalize(pointcloud):
 # pointcloud: np.array((N,3),dtype=float))
-# return normalized: np.array((N,3),dtype=float))
+# return normalized: np.array((N,3),dtype=float))  mean_repeat[0]  np.shape = (3,)
     mean_repeat = np.repeat(np.array([np.mean(pointcloud,axis = 0).T]),pointcloud.shape[0],axis = 0)
     normalized = pointcloud - mean_repeat
-    return normalized
+    return normalized, mean_repeat[0]
 
-def ICP(source,target):
+def discard_large_dist(percent,array_source_index_dist):
+#discard percent of point from association with largest distance
+    sorted_index_array = np.argsort(array_source_index_dist[:,4],axis = 0)   # 按距离排序的下标，原顺序是source         sorted np.array([[source,index,dist],..[]])
+    discard_index = int(len(sorted_index_array) - np.ceil(percent*len(sorted_index_array)))   #所有数组剪掉距离远的
+    sorted_array_index_dist = array_source_index_dist[sorted_index_array[:discard_index]]
+    return sorted_array_index_dist    #np.array([[source,index,dist1]...[source,index,dist2]])   按照dist排序之后， index为target下标
+
+def data_association(source,target):
 #Data association
     # source_normalized = normalize(source)
     # target_normalized = normalize(target)
-
     source_normalized = source
     target_normalized = target
     root = kdtree_construction(target_normalized,1)
-    array_dist_point = np.zeros((source.shape[0],source.shape[1]+1))
+    array_index_dist = np.zeros((source.shape[0],2))
     count = 0
     for point in source_normalized:
         KNNresultSet = KNNResultSet(1)
         kdtree_knn_search(root,target_normalized,KNNresultSet,point)
-        array_dist_point[count] = np.concatenate((target_normalized[KNNresultSet.dist_index_list[0].index],np.array([KNNresultSet.dist_index_list[0].distance])),axis = 0)
+        array_index_dist[count] = np.concatenate((np.array([KNNresultSet.dist_index_list[0].index],dtype=int),np.array([KNNresultSet.dist_index_list[0].distance])),axis = 0)
         count += 1
         print(count)
-    return array_dist_point
+#Iteration
 
-target = np.loadtxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/simulated_different_noise/0000_simulation.txt",delimiter=",")
-source = np.loadtxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/simulated_different_noise/0000_simulation_noised.txt",delimiter=",")
-array_dist_point = ICP(source,target)
-source_result = array_dist_point
-target_result = target
-np.savetxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/simulated_different_noise/0000_source.txt",source_result,fmt='%.14f',delimiter=",")
-np.savetxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/simulated_different_noise/0000_target.txt",target_result,fmt='%.14f',delimiter=",")
+    return array_index_dist
+
+def svd(A):
+    m, n = A.shape
+    if m > n:
+        sigma, V = np.linalg.eig(A.T @ A)
+        # 将sigma 和V 按照特征值从大到小排列
+        arg_sort = np.argsort(sigma)[::-1]
+        sigma = np.sort(sigma)[::-1]
+        V = V[:, arg_sort]
+
+        # 对sigma进行平方根处理
+        sigma_matrix = np.diag(np.sqrt(sigma))
+
+        sigma_inv = np.linalg.inv(sigma_matrix)
+
+        U = A @ V.T @ sigma_inv
+        U = np.pad(U, pad_width=((0, 0), (0, m - n)))
+        sigma_matrix = np.pad(sigma_matrix, pad_width=((0, m - n), (0, 0)))
+        return (U, sigma_matrix, V)
+    else:
+        # 同m>n 只不过换成从U开始计算
+        sigma, U = np.linalg.eig(A @ A.T)
+        arg_sort = np.argsort(sigma)[::-1]
+        sigma = np.sort(sigma)[::-1]
+        U = U[:, arg_sort]
+
+        sigma_matrix = np.diag(np.sqrt(sigma))
+        sigma_inv = np.linalg.inv(sigma_matrix)
+        V = sigma_inv @ U.T @ A
+        V = np.pad(V, pad_width=((0, n - m), (0, 0)))
+
+        sigma_matrix = np.pad(sigma_matrix, pad_width=((0, 0), (0, n - m)))
+        return (U, sigma_matrix, V)
+
+
+
+
+
+
