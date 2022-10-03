@@ -183,21 +183,31 @@ def discard_large_dist(percent,array_source_index_dist):
 
 def data_association(source,target):
 #Data association
-    # source_normalized = normalize(source)
-    # target_normalized = normalize(target)
-    source_normalized = source
-    target_normalized = target
-    root = kdtree_construction(target_normalized,1)
+    root = kdtree_construction(target,1)
     array_index_dist = np.zeros((source.shape[0],2))
     count = 0
-    for point in source_normalized:
+    for point in source:
         KNNresultSet = KNNResultSet(1)
-        kdtree_knn_search(root,target_normalized,KNNresultSet,point)
+        kdtree_knn_search(root,target,KNNresultSet,point)
         array_index_dist[count] = np.concatenate((np.array([KNNresultSet.dist_index_list[0].index],dtype=int),np.array([KNNresultSet.dist_index_list[0].distance])),axis = 0)
         count += 1
         print(count)
 #Iteration
 
+    return array_index_dist
+
+def data_association_k(source,target,k):
+    root = kdtree_construction(target,1)
+    array_index_dist = np.zeros((source.shape[0],k,2))
+    count = 0
+    for point in range(len(source)):
+        KNNresultSet = KNNResultSet(k)
+        kdtree_knn_search(root, target, KNNresultSet, source[point])
+        for i in range(k):
+            array_index_dist[point,i] = np.concatenate((np.array([KNNresultSet.dist_index_list[i].index], dtype=int),
+                                                  np.array([KNNresultSet.dist_index_list[i].distance])), axis=0)
+        count += 1
+        print(count)
     return array_index_dist
 
 def svd(A):

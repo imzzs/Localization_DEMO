@@ -13,7 +13,7 @@ def test_R_T(position):
     noised_position = (rotation_matrix_noised @ np.transpose(rotation_matrix) @ trajectory[position][2:5].T).T + translation_noised - rotation_matrix_noised @ np.transpose(rotation_matrix) @ translation.T
     return noised_position
 
-positions = 3
+positions = 5
 iteration_times = 5
 target_static = np.zeros((positions,3))
 source_static= np.zeros((positions,iteration_times,3))
@@ -29,6 +29,8 @@ trajectory_noised = np.loadtxt(
 for i in range(positions):
         target = np.loadtxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/simulated_different_noise/000"+str(i)+"_simulation.txt",delimiter=",")
         source = np.loadtxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/simulated_different_noise/000"+str(i)+"_simulation_noised.txt",delimiter=",")
+        target = np.unique(target,axis = 0)
+        source = np.unique(source,axis = 0)
         R_noised = o3d.geometry.get_rotation_matrix_from_yxz(trajectory_noised[i,3:])
         T_noised = trajectory_noised[i,:3]
 
@@ -43,6 +45,7 @@ for i in range(positions):
         T_mean = np.zeros((3,1))
         np.savetxt("/home/zhao/sda3/masterarbeit/preparetion/localization_demo/data/target+"+str(i)+".txt",target,fmt="%.14f",delimiter=",")
         target_static[i,:] = T_target_mean
+        dist = []
         for j in range(iteration_times):
             array_index_dist = data_association(source,target)    #按照source顺序返回target index和距离 返回 np.array([[target_index,dist]...[]])
             array_source_index_dist = np.concatenate((source,array_index_dist),axis = 1)   #np.array((N,5),  source,index,dist)
@@ -53,7 +56,7 @@ for i in range(positions):
             E_static[j,i] = E
             normalized_source_result,_ = normalize(source_result)
             normalized_target_result,_ = normalize(target_result)
-
+            dist.append(array_source_index_dist[0,4])
             production = np.dot(normalized_target_result.T,normalized_source_result)
             u,s,vh = svd(production)
             production_ = np.dot(np.dot(u,s),vh)
@@ -74,8 +77,8 @@ print(target_static)
 print(source_static)
 print(E_static)
 print(D_static)
-
-
+print(position_source)
+print(position_source_icp)
 
 # y = E_static
 # plt.plot(x,y)
